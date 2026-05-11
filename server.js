@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const path = require('path');
-const { Sequelize, DataTypes } = require('sequelize');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,59 +9,57 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// ===== SERVIR LE DOSSIER PUBLIC (IMPORTANT !) =====
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ===== Base de données SQLite =====
-const sequelize = new Sequelize({
-    dialect: 'sqlite',
-    storage: './database.sqlite',
-    logging: false
+// ===== CONNEXION MONGODB =====
+const MONGODB_URI = 'mongodb+srv://mehdisarkhiwushuexam_db_user:IKFAUKE9fDs3sXc7@m0.mkt2okn.mongodb.net/ktb_arbitres?retryWrites=true&w=majority';
+
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ Connecté à MongoDB Atlas'))
+  .catch(err => console.error('❌ Erreur MongoDB:', err));
+
+// ===== SCHÉMAS =====
+const arbitreSchema = new mongoose.Schema({
+    nom: String,
+    dob: String,
+    lieuNais: String,
+    cin: String,
+    cinDate: String,
+    cinLieu: String,
+    adresse: String,
+    cp: String,
+    tel: String,
+    nationalite: String,
+    profession: String,
+    club: String,
+    niveau: String,
+    debut: String,
+    grade: String,
+    gradeDate: String,
+    banque: String,
+    rib: String,
+    photo: String,
+    createdAt: String
 });
 
-// Modèle Arbitre
-const Arbitre = sequelize.define('Arbitre', {
-    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    nom: { type: DataTypes.STRING, allowNull: false },
-    dob: DataTypes.STRING,
-    lieuNais: DataTypes.STRING,
-    cin: DataTypes.STRING,
-    cinDate: DataTypes.STRING,
-    cinLieu: DataTypes.STRING,
-    adresse: DataTypes.STRING,
-    cp: DataTypes.STRING,
-    tel: DataTypes.STRING,
-    nationalite: DataTypes.STRING,
-    profession: DataTypes.STRING,
-    club: DataTypes.STRING,
-    niveau: DataTypes.STRING,
-    debut: DataTypes.STRING,
-    grade: DataTypes.STRING,
-    gradeDate: DataTypes.STRING,
-    banque: DataTypes.STRING,
-    rib: DataTypes.STRING,
-    photo: DataTypes.TEXT,
-    createdAt: DataTypes.STRING
+const documentSchema = new mongoose.Schema({
+    type: String,
+    titre: String,
+    saison: String,
+    fileName: String,
+    fileData: String,
+    createdAt: String
 });
 
-// Modèle Document
-const Document = sequelize.define('Document', {
-    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    type: DataTypes.STRING,
-    titre: DataTypes.STRING,
-    saison: DataTypes.STRING,
-    files: DataTypes.TEXT,
-    createdAt: DataTypes.STRING
-});
+const Arbitre = mongoose.model('Arbitre', arbitreSchema);
+const Document = mongoose.model('Document', documentSchema);
 
-// ===== API Routes =====
+// ===== ROUTES API =====
 
 // ARBITRES
 app.get('/api/arbitres', async (req, res) => {
     try {
-        const arbitres = await Arbitre.findAll({ order: [['id', 'DESC']] });
+        const arbitres = await Arbitre.find().sort({ _id: -1 });
         res.json(arbitres);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -70,7 +68,8 @@ app.get('/api/arbitres', async (req, res) => {
 
 app.post('/api/arbitres', async (req, res) => {
     try {
-        const arbitre = await Arbitre.create(req.body);
+        const arbitre = new Arbitre(req.body);
+        await arbitre.save();
         res.json(arbitre);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -79,7 +78,7 @@ app.post('/api/arbitres', async (req, res) => {
 
 app.delete('/api/arbitres/:id', async (req, res) => {
     try {
-        await Arbitre.destroy({ where: { id: req.params.id } });
+        await Arbitre.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -89,7 +88,7 @@ app.delete('/api/arbitres/:id', async (req, res) => {
 // DOCUMENTS
 app.get('/api/documents', async (req, res) => {
     try {
-        const docs = await Document.findAll({ order: [['id', 'DESC']] });
+        const docs = await Document.find().sort({ _id: -1 });
         res.json(docs);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -98,7 +97,8 @@ app.get('/api/documents', async (req, res) => {
 
 app.post('/api/documents', async (req, res) => {
     try {
-        const doc = await Document.create(req.body);
+        const doc = new Document(req.body);
+        await doc.save();
         res.json(doc);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -107,23 +107,18 @@ app.post('/api/documents', async (req, res) => {
 
 app.delete('/api/documents/:id', async (req, res) => {
     try {
-        await Document.destroy({ where: { id: req.params.id } });
+        await Document.findByIdAndDelete(req.params.id);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// ===== Pour les routes SPA (renvoie index.html) =====
+// ===== SERVEUR =====
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ===== Démarrage =====
-sequelize.sync().then(() => {
-    app.listen(PORT, () => {
-        console.log(`✅ Serveur KTB Arbitres démarré sur le port ${PORT}`);
-        console.log(`📋 API disponible sur /api`);
-        console.log(`🌐 Interface: http://localhost:${PORT}`);
-    });
+app.listen(PORT, () => {
+    console.log(`✅ Serveur démarré sur le port ${PORT}`);
 });
