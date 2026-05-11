@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const { Sequelize, DataTypes } = require('sequelize');
 const path = require('path');
+const { Sequelize, DataTypes } = require('sequelize');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,8 +11,8 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Servir les fichiers statiques (le frontend)
-app.use(express.static(path.join(__dirname, '.')));
+// ===== SERVIR LE DOSSIER PUBLIC (IMPORTANT !) =====
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ===== Base de données SQLite =====
 const sequelize = new Sequelize({
@@ -23,6 +23,7 @@ const sequelize = new Sequelize({
 
 // Modèle Arbitre
 const Arbitre = sequelize.define('Arbitre', {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     nom: { type: DataTypes.STRING, allowNull: false },
     dob: DataTypes.STRING,
     lieuNais: DataTypes.STRING,
@@ -42,13 +43,12 @@ const Arbitre = sequelize.define('Arbitre', {
     banque: DataTypes.STRING,
     rib: DataTypes.STRING,
     photo: DataTypes.TEXT,
-    stats: DataTypes.TEXT,
-    docsJoints: DataTypes.TEXT,
     createdAt: DataTypes.STRING
 });
 
 // Modèle Document
 const Document = sequelize.define('Document', {
+    id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
     type: DataTypes.STRING,
     titre: DataTypes.STRING,
     saison: DataTypes.STRING,
@@ -58,7 +58,7 @@ const Document = sequelize.define('Document', {
 
 // ===== API Routes =====
 
-// --- ARBITRES ---
+// ARBITRES
 app.get('/api/arbitres', async (req, res) => {
     try {
         const arbitres = await Arbitre.findAll({ order: [['id', 'DESC']] });
@@ -70,11 +70,7 @@ app.get('/api/arbitres', async (req, res) => {
 
 app.post('/api/arbitres', async (req, res) => {
     try {
-        const arbitre = await Arbitre.create({
-            ...req.body,
-            stats: JSON.stringify(req.body.stats || []),
-            docsJoints: JSON.stringify(req.body.docsJoints || [])
-        });
+        const arbitre = await Arbitre.create(req.body);
         res.json(arbitre);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -90,7 +86,7 @@ app.delete('/api/arbitres/:id', async (req, res) => {
     }
 });
 
-// --- DOCUMENTS ---
+// DOCUMENTS
 app.get('/api/documents', async (req, res) => {
     try {
         const docs = await Document.findAll({ order: [['id', 'DESC']] });
@@ -102,10 +98,7 @@ app.get('/api/documents', async (req, res) => {
 
 app.post('/api/documents', async (req, res) => {
     try {
-        const doc = await Document.create({
-            ...req.body,
-            files: JSON.stringify(req.body.files || [])
-        });
+        const doc = await Document.create(req.body);
         res.json(doc);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -121,10 +114,16 @@ app.delete('/api/documents/:id', async (req, res) => {
     }
 });
 
+// ===== Pour les routes SPA (renvoie index.html) =====
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ===== Démarrage =====
 sequelize.sync().then(() => {
     app.listen(PORT, () => {
         console.log(`✅ Serveur KTB Arbitres démarré sur le port ${PORT}`);
-        console.log(`📋 API disponible sur http://localhost:${PORT}/api`);
+        console.log(`📋 API disponible sur /api`);
+        console.log(`🌐 Interface: http://localhost:${PORT}`);
     });
 });
