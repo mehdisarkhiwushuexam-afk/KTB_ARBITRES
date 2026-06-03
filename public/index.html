@@ -432,6 +432,14 @@
           <label>تاريخ التصنيف — Date Grade</label>
           <input type="date" id="f-grade-date">
         </div>
+        <div class="form-group full">
+          <label>أهم المشاركات — Niveau National</label>
+          <textarea id="f-national" placeholder="ex: Championnat National 2023, Coupe de Tunisie 2024..." rows="2" style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.9rem;resize:vertical;"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>أهم المشاركات — Niveau International</label>
+          <textarea id="f-international" placeholder="ex: Championnat Arabe 2023, Championnat Africain 2024..." rows="2" style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-family:inherit;font-size:0.9rem;resize:vertical;"></textarea>
+          </div>
       </div>
 
       <!-- BANQUE / RIB -->
@@ -483,7 +491,8 @@
     <div class="page-title">
       <div class="icon">⚙️</div>
       <h2>Panneau Administrateur</h2>
-      <button class="btn btn-secondary btn-sm no-print" style="margin-left:auto" onclick="logout()">🚪 Déconnexion</button>
+      <button class="btn btn-success btn-sm no-print" style="margin-left:auto" onclick="refreshAdmin()">🔄 Rafraîchir</button>
+      <button class="btn btn-secondary btn-sm no-print" onclick="logout()">🚪 Déconnexion</button>
     </div>
 
     <div class="stats-bar" id="admin-stats"></div>
@@ -854,6 +863,8 @@ async function saveArbitre(e) {
     gradeDate: document.getElementById('f-grade-date').value,
     banque: document.getElementById('f-banque').value,
     rib: document.getElementById('f-rib').value,
+    national: document.getElementById('f-national').value,
+    international: document.getElementById('f-international').value,
     photo: photoURL,
     stats: [],
     createdAt: new Date().toLocaleDateString('fr-FR')
@@ -943,22 +954,42 @@ function showAdminTab(id, btn) {
   if(id==='admin-stats-tab') renderAdminStatsTable();
 }
 
+// ===== REFRESH ADMIN =====
+async function refreshAdmin() {
+  toast('Mise à jour en cours...');
+  await loadArbitres();
+  renderAdminStats();
+  renderTable();
+  renderFiches();
+  renderAdminStatsTable();
+  toast('Données mises à jour !');
+}
+
 // ===== ADMIN STATS TABLE =====
+function calcExperience(debut) {
+  if(!debut) return '';
+  const start = new Date(debut);
+  if(isNaN(start)) return '';
+  const years = new Date().getFullYear() - start.getFullYear();
+  return years >= 0 ? years : '';
+}
+
 function addAdminStatsRow(data) {
   const tbody = document.getElementById('admin-stats-table-body');
   const n = tbody.rows.length + 1;
   const r = tbody.insertRow();
   const d = data || {};
+  const exp = calcExperience(d.debut) !== '' ? calcExperience(d.debut) : (d.experience || '');
   r.innerHTML = `
     <td style="text-align:center;font-weight:700">${String(n).padStart(2,'0')}</td>
-    <td><input type="text" placeholder="Nom" value="${d.nom||''}"  ></td>
-    <td><input type="number" placeholder="Age" style="width:60px" value="${d.age||''}"  ></td>
-    <td><input type="text" placeholder="Profession" value="${d.profession||''}"  ></td>
-    <td><input type="text" placeholder="Grade" value="${d.grade||''}"  ></td>
-    <td><input type="number" placeholder="Années" style="width:70px" value="${d.experience||''}"  ></td>
-    <td><input type="text" placeholder="Fonction" value="${d.fonction||''}"  ></td>
-    <td><input type="text" placeholder="National" value="${d.national||''}"  ></td>
-    <td><input type="text" placeholder="International" value="${d.international||''}"  ></td>
+    <td><input type="text" placeholder="Nom" value="${d.nom||''}"></td>
+    <td><input type="number" placeholder="Age" style="width:60px" value="${d.age||''}"></td>
+    <td><input type="text" placeholder="Profession" value="${d.profession||''}"></td>
+    <td><input type="text" placeholder="Grade" value="${d.grade||''}"></td>
+    <td style="text-align:center;font-weight:700;color:#c0001a;min-width:60px">${exp}</td>
+    <td><input type="text" placeholder="Fonction" value="${d.fonction||''}"></td>
+    <td><input type="text" placeholder="National" value="${d.national||''}"></td>
+    <td><input type="text" placeholder="International" value="${d.international||''}"></td>
   `;
 }
 
@@ -1000,10 +1031,10 @@ function fillStatsFromArbitres() {
       age: a.dob ? (new Date().getFullYear() - new Date(a.dob).getFullYear()) : '',
       profession: a.profession || '',
       grade: a.grade || '',
-      experience: '',
+      debut: a.debut || '',
       fonction: '',
-      national: '',
-      international: ''
+      national: a.national || '',
+      international: a.international || ''
     });
   });
   if(DB.arbitres.length === 0) for(let i=0;i<5;i++) addAdminStatsRow();
