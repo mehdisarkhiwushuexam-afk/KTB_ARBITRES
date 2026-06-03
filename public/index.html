@@ -703,14 +703,69 @@
 </div>
 
 <script>
+// ===== CONFIG =====
+const API = 'https://ktb-arbitres-backend.onrender.com/api';
+const ADMIN_PASS = 'ktb2025admin';
+let adminLoggedIn = false;
+
 // ===== DATA STORE =====
 let DB = {
-  arbitres: JSON.parse(localStorage.getItem('ktb_arbitres') || '[]'),
+  arbitres: [],
   documents: JSON.parse(localStorage.getItem('ktb_documents') || '[]'),
   adminStats: JSON.parse(localStorage.getItem('ktb_admin_stats') || '[]')
 };
-const ADMIN_PASS = 'ktb2025admin';
-let adminLoggedIn = false;
+
+// ===== API HELPERS =====
+function authHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': 'Basic ' + btoa('admin:KtbAdmin2026!')
+  };
+}
+
+async function apiGet(path) {
+  const res = await fetch(API + path);
+  if (!res.ok) throw new Error('Erreur réseau');
+  return res.json();
+}
+
+async function apiPost(path, data) {
+  const res = await fetch(API + path, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erreur réseau');
+  return res.json();
+}
+
+async function apiPut(path, data) {
+  const res = await fetch(API + path, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error('Erreur réseau');
+  return res.json();
+}
+
+async function apiDelete(path) {
+  const res = await fetch(API + path, {
+    method: 'DELETE',
+    headers: authHeaders()
+  });
+  if (!res.ok) throw new Error('Erreur réseau');
+  return res.json();
+}
+
+async function loadArbitres() {
+  try {
+    DB.arbitres = await apiGet('/arbitres');
+  } catch(e) {
+    DB.arbitres = [];
+    console.error('Impossible de charger les arbitres', e);
+  }
+}
 
 // ===== SPLASH =====
 window.addEventListener('load', () => {
@@ -778,12 +833,9 @@ async function saveArbitre(e) {
   e.preventDefault();
   let photoURL = '';
   const photoFile = document.getElementById('f-photo').files[0];
-  if(photoFile) {
-    photoURL = await toBase64(photoFile);
-  }
+  if(photoFile) photoURL = await toBase64(photoFile);
 
   const arbitre = {
-    id: Date.now(),
     nom: document.getElementById('f-nom').value,
     dob: document.getElementById('f-dob').value,
     lieuNais: document.getElementById('f-lieu-nais').value,
@@ -807,10 +859,14 @@ async function saveArbitre(e) {
     createdAt: new Date().toLocaleDateString('fr-FR')
   };
 
-  DB.arbitres.push(arbitre);
-  localStorage.setItem('ktb_arbitres', JSON.stringify(DB.arbitres));
-  toast('Fiche arbitre enregistrée avec succès !');
-  resetForm();
+  try {
+    const saved = await apiPost('/arbitres', arbitre);
+    DB.arbitres.push(saved);
+    toast('Fiche arbitre enregistrée avec succès !');
+    resetForm();
+  } catch(err) {
+    toast('Erreur lors de l\'enregistrement', 'error');
+  }
 }
 
 function toBase64(file) {
@@ -851,12 +907,14 @@ async function saveDocument() {
 }
 
 // ===== ADMIN =====
-function checkAdmin() {
+async function checkAdmin() {
   const p = document.getElementById('admin-pass').value;
   if(p === ADMIN_PASS) {
     adminLoggedIn = true;
     document.getElementById('admin-gate').style.display = 'none';
     document.getElementById('admin-panel').style.display = 'block';
+    toast('Chargement des données...');
+    await loadArbitres();
     renderAdminStats();
     renderTable();
     renderFiches();
@@ -965,7 +1023,7 @@ document.addEventListener('click', function(e) {
 
 // ===== VIEW FICHE MODAL =====
 function viewFicheModal(id) {
-  const a = DB.arbitres.find(x => x.id === id);
+  const a = DB.arbitres.find(x => (x._id||x.id) == id);
   if(!a) return;
   const photoEl = document.getElementById('modal-photo');
   if(a.photo) {
@@ -1000,16 +1058,16 @@ function viewFicheModal(id) {
   });
   html += '</table>';
   document.getElementById('modal-fiche-body').innerHTML = html;
-  document.getElementById('modal-print-btn').onclick = () => printSingleFiche(id);
-  document.getElementById('modal-edit-btn').onclick = () => { closeModal('modal-fiche'); openEdit(id); };
+  document.getElementById('modal-print-btn').onclick = () => printSingleFiche(a._id||a.id);
+  document.getElementById('modal-edit-btn').onclick = () => { closeModal('modal-fiche'); openEdit(a._id||a.id); };
   document.getElementById('modal-fiche').style.display = 'block';
 }
 
 // ===== EDIT ARBITRE =====
 function openEdit(id) {
-  const a = DB.arbitres.find(x => x.id === id);
+  const a = DB.arbitres.find(x => (x._id||x.id) == id);
   if(!a) return;
-  document.getElementById('edit-id').value = id;
+  document.getElementById('edit-id').value = a._id||a.id;
   document.getElementById('edit-nom').value = a.nom||'';  document.getElementById('edit-dob').value = a.dob||'';  document.getElementById('edit-lieu-nais').value = a.lieuNais||'';  document.getElementById('edit-cin').value = a.cin||'';  document.getElementById('edit-cin-date').value = a.cinDate||'';  document.getElementById('edit-cin-lieu').value = a.cinLieu||'';  document.getElementById('edit-adresse').value = a.adresse||'';  document.getElementById('edit-cp').value = a.cp||'';  document.getElementById('edit-tel').value = a.tel||'';  document.getElementById('edit-nationalite').value = a.nationalite||'';  document.getElementById('edit-profession').value = a.profession||'';  document.getElementById('edit-club').value = a.club||'';  document.getElementById('edit-niveau').value = a.niveau||'';  document.getElementById('edit-debut').value = a.debut||'';  document.getElementById('edit-grade').value = a.grade||'';  document.getElementById('edit-grade-date').value = a.gradeDate||'';  document.getElementById('edit-banque').value = a.banque||'';  document.getElementById('edit-rib').value = a.rib||'';  const prev = document.getElementById('edit-photo-preview');
   prev.innerHTML = a.photo ? `<img src="${a.photo}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:2px solid #ddd;margin-top:8px;">` : '';
   document.getElementById('modal-edit').style.display = 'block';
@@ -1027,13 +1085,13 @@ function previewEditPhoto(input) {
 }
 
 async function saveEdit() {
-  const id = parseInt(document.getElementById('edit-id').value);
-  const idx = DB.arbitres.findIndex(x => x.id === id);
+  const id = document.getElementById('edit-id').value;
+  const idx = DB.arbitres.findIndex(x => (x._id||x.id) == id);
   if(idx === -1) return;
   const photoFile = document.getElementById('edit-photo').files[0];
   let photoURL = DB.arbitres[idx].photo;
   if(photoFile) photoURL = await toBase64(photoFile);
-  DB.arbitres[idx] = {
+  const updated = {
     ...DB.arbitres[idx],
     nom: document.getElementById('edit-nom').value,
     dob: document.getElementById('edit-dob').value,
@@ -1056,11 +1114,16 @@ async function saveEdit() {
     photo: photoURL,
     updatedAt: new Date().toLocaleDateString('fr-FR')
   };
-  localStorage.setItem('ktb_arbitres', JSON.stringify(DB.arbitres));
-  closeModal('modal-edit');
-  renderTable(); renderFiches(); renderAdminStats();
-  toast('Arbitre modifié avec succès !');
-  document.getElementById('edit-photo').value = '';
+  try {
+    const res = await apiPut('/arbitres/' + id, updated);
+    DB.arbitres[idx] = res;
+    closeModal('modal-edit');
+    renderTable(); renderFiches(); renderAdminStats();
+    toast('Arbitre modifié avec succès !');
+    document.getElementById('edit-photo').value = '';
+  } catch(err) {
+    toast('Erreur lors de la modification', 'error');
+  }
 }
 
 // ===== ADMIN STATS CARDS =====
@@ -1103,9 +1166,9 @@ function renderTable() {
       <td>${a.banque||'—'}</td>
       <td style="font-family:monospace;font-size:0.78rem;">${a.rib||'—'}</td>
       <td class="no-print">
-        <button class="btn btn-warning btn-sm" onclick="viewFicheModal(${a.id})">👁️</button>
-        <button class="btn btn-primary btn-sm" onclick="openEdit(${a.id})">✏️</button>
-        <button class="btn btn-secondary btn-sm" onclick="deleteArbitre(${a.id})">🗑️</button>
+        <button class="btn btn-warning btn-sm" onclick="viewFicheModal('${a._id||a.id}')">👁️</button>
+        <button class="btn btn-primary btn-sm" onclick="openEdit('${a._id||a.id}')">✏️</button>
+        <button class="btn btn-secondary btn-sm" onclick="deleteArbitre('${a._id||a.id}')">🗑️</button>
       </td>
     </tr>
   `).join('');
@@ -1139,8 +1202,8 @@ function renderFiches() {
         <div class="fiche-row"><span>RIB</span><span style="font-family:monospace;font-size:0.75rem;">${a.rib||'—'}</span></div>
       </div>
       <div class="fiche-actions no-print">
-        <button class="btn btn-primary btn-sm" onclick="printSingleFiche(${a.id})">🖨️ Imprimer</button>
-        <button class="btn btn-secondary btn-sm" onclick="deleteArbitre(${a.id})">🗑️ Supprimer</button>
+        <button class="btn btn-primary btn-sm" onclick="printSingleFiche('${a._id||a.id}')">🖨️ Imprimer</button>
+        <button class="btn btn-secondary btn-sm" onclick="deleteArbitre('${a._id||a.id}')">🗑️ Supprimer</button>
       </div>
     </div>
   `).join('');
@@ -1183,12 +1246,16 @@ function deleteDocAdmin(id) {
   toast('Supprimé', 'error');
 }
 
-function deleteArbitre(id) {
+async function deleteArbitre(id) {
   if(!confirm('Supprimer cet arbitre ?')) return;
-  DB.arbitres = DB.arbitres.filter(a => a.id !== id);
-  localStorage.setItem('ktb_arbitres', JSON.stringify(DB.arbitres));
-  renderTable(); renderFiches(); renderAdminStats();
-  toast('Arbitre supprimé', 'error');
+  try {
+    await apiDelete('/arbitres/' + id);
+    DB.arbitres = DB.arbitres.filter(a => (a._id||a.id) != id);
+    renderTable(); renderFiches(); renderAdminStats();
+    toast('Arbitre supprimé', 'error');
+  } catch(err) {
+    toast('Erreur lors de la suppression', 'error');
+  }
 }
 
 // ===== EXPORT / IMPORT =====
@@ -1220,18 +1287,20 @@ function importJSON(input) {
   const file = input.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
-      let newCount = 0;
       const toImport = data.arbitres || (Array.isArray(data) ? data : []);
-      toImport.forEach(a => {
+      let newCount = 0;
+      for(const a of toImport) {
         if(!DB.arbitres.find(x => x.cin === a.cin)) {
-          if(!a.id) a.id = Date.now() + Math.random();
-          DB.arbitres.push(a);
-          newCount++;
+          try {
+            const saved = await apiPost('/arbitres', a);
+            DB.arbitres.push(saved);
+            newCount++;
+          } catch(err) {}
         }
-      });
+      }
       if(data.documents) {
         data.documents.forEach(d => {
           if(!DB.documents.find(x => x.id === d.id)) DB.documents.push(d);
@@ -1239,7 +1308,6 @@ function importJSON(input) {
         localStorage.setItem('ktb_documents', JSON.stringify(DB.documents));
         renderAdminDocs();
       }
-      localStorage.setItem('ktb_arbitres', JSON.stringify(DB.arbitres));
       renderTable(); renderFiches(); renderAdminStats();
       toast(`${newCount} arbitre(s) importé(s) avec succès !`);
     } catch(err) {
@@ -1326,7 +1394,7 @@ function exportPDF() {
 }
 
 function printSingleFiche(id) {
-  const a = DB.arbitres.find(x => x.id === id);
+  const a = DB.arbitres.find(x => (x._id||x.id) == id);
   if(!a) return;
   const w = window.open('', '_blank');
   w.document.write(`
